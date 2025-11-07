@@ -1,4 +1,4 @@
-package com.example.loan_calculator;
+package com.example.loancalculator;
 
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;

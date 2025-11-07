@@ -1,0 +1,66 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+    xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+        http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.20.xsd">
+
+    <changeSet id="create-loans-and-installments-tables" author="loan-calculator">
+        <comment>Create loans and installments tables for loan calculator application</comment>
+
+        <createTable tableName="loans">
+            <column name="id" type="VARCHAR(255)">
+                <constraints primaryKey="true" primaryKeyName="loans_id_pk"/>
+            </column>
+            <column name="amount" type="DECIMAL(8,2)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="annual_interest_percent" type="DECIMAL(5,2)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="number_of_months" type="INT">
+                <constraints nullable="false"/>
+            </column>
+            <column name="monthly_payment" type="DECIMAL(8,2)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="created_at" type="TIMESTAMP" defaultValueComputed="NOW()">
+                <constraints nullable="false" />
+            </column>
+            <column name="last_updated_at" type="TIMESTAMP" defaultValueComputed="NOW() ON UPDATE NOW()">
+                <constraints nullable="false" />
+            </column>
+        </createTable>
+
+        <createTable tableName="installments">
+            <column name="id" type="VARCHAR(255)">
+                <constraints primaryKey="true" primaryKeyName="installments_id_pk"/>
+            </column>
+            <column name="month" type="INT">
+                <constraints nullable="false"/>
+            </column>
+            <column name="payment" type="DECIMAL(8,2)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="principal" type="DECIMAL(8,2)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="interest" type="DECIMAL(8,2)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="remaining_balance" type="DECIMAL(8,2)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="created_at" type="TIMESTAMP" defaultValueComputed="NOW()">
+                <constraints nullable="false" />
+            </column>
+            <column name="last_updated_at" type="TIMESTAMP" defaultValueComputed="NOW() ON UPDATE NOW()">
+                <constraints nullable="false" />
+            </column>
+            <column name="loan_id" type="VARCHAR(255)">
+                <constraints nullable="false" foreignKeyName="fk_installment_loan" referencedTableName="loans" referencedColumnNames="id"/>
+            </column>
+        </createTable>
+    </changeSet>
+
+</databaseChangeLog>
