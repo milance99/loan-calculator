@@ -42,7 +42,7 @@ public class Loan {
     private LocalDateTime lastUpdatedAt;
 
     @JsonManagedReference
-    @OneToMany(mappedBy = "loan", cascade = CascadeType.ALL, orphanRemoval = true)
+    @OneToMany(mappedBy = "loan", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.EAGER)
     private List<Installment> installments;
 
 }

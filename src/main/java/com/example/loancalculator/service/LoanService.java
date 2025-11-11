@@ -8,11 +8,14 @@ import com.example.loancalculator.model.dto.InstallmentDto;
 import com.example.loancalculator.model.dto.LoanRequestDto;
 import com.example.loancalculator.model.dto.LoanResponseDto;
 import com.example.loancalculator.repostiory.LoanRepository;
-import jakarta.validation.Valid;
+
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.validation.annotation.Validated;
+
+import jakarta.validation.Valid;
 
 import java.math.BigDecimal;
 import java.util.List;
@@ -20,6 +23,7 @@ import java.util.List;
 @Service
 @RequiredArgsConstructor
 @Validated
+@Slf4j
 public class LoanService {
 
     private final LoanRepository loanRepository;
@@ -27,6 +31,8 @@ public class LoanService {
 
     @Transactional
     public LoanResponseDto calculateAndSaveLoan(@Valid LoanRequestDto request) {
+        log.info("Starting loan calculation for amount: {}, interest: {}%, months: {}",
+                request.amount(), request.annualInterestPercent(), request.numberOfMonths());
 
         BigDecimal monthlyPayment = loanCalculationService.calculateMonthlyPayment(
                 request.amount(),
@@ -51,24 +57,8 @@ public class LoanService {
         loan.setInstallments(installmentEntities);
         Loan savedLoan = loanRepository.save(loan);
 
-        List<InstallmentDto> responseSchedule = savedLoan.getInstallments().stream()
-                .map(installment -> new InstallmentDto(
-                        installment.getMonth(),
-                        installment.getPayment(),
-                        installment.getPrincipal(),
-                        installment.getInterest(),
-                        installment.getRemainingBalance()
-                ))
-                .toList();
+        log.info("Loan calculation completed successfully. Generated loan ID: {}", savedLoan.getId());
 
-        return new LoanResponseDto(
-                savedLoan.getId(),
-                savedLoan.getAmount(),
-                savedLoan.getAnnualInterestPercent(),
-                savedLoan.getNumberOfMonths(),
-                savedLoan.getMonthlyPayment(),
-                savedLoan.getCreatedAt(),
-                responseSchedule
-        );
+        return LoanMapper.toResponseDto(savedLoan);
     }
 }
