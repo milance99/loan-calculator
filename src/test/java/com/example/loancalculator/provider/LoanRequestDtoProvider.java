@@ -18,7 +18,6 @@ public class LoanRequestDtoProvider {
         return new LoanRequestDto(amount, interest, months);
     }
 
-    // Invalid cases for validation testing
     public static LoanRequestDto nullAmount() {
         return new LoanRequestDto(null, BigDecimal.valueOf(5.0), 12);
     }

@@ -1,89 +1,111 @@
 package com.example.loancalculator.service;
 
-import com.example.loancalculator.model.Installment;
-import com.example.loancalculator.model.Loan;
-import com.example.loancalculator.model.dto.InstallmentDto;
+import com.example.loancalculator.AbstractLoanCalculatorTest;
 import com.example.loancalculator.model.dto.LoanRequestDto;
 import com.example.loancalculator.model.dto.LoanResponseDto;
-import com.example.loancalculator.provider.InstallmentDtoProvider;
 import com.example.loancalculator.provider.LoanRequestDtoProvider;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.InjectMocks;
-import org.mockito.Mock;
-import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.beans.factory.annotation.Autowired;
 
 import java.math.BigDecimal;
-import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.when;
 
-@DisplayName("Loan Service Unit Tests")
-@ExtendWith(MockitoExtension.class)
-class LoanServiceTest {
+@DisplayName("Loan Service Integration Tests")
+class LoanServiceTest extends AbstractLoanCalculatorTest {
 
-    @Mock
-    private com.example.loancalculator.repostiory.LoanRepository loanRepository;
-
-    @Mock
-    private LoanCalculationService loanCalculationService;
-
-    @InjectMocks
+    @Autowired
     private LoanService loanService;
 
     @Test
-    @DisplayName("Should orchestrate loan calculation and persistence")
-    void shouldOrchestrateLoanCalculationAndPersistence() {
-        LoanRequestDto request = LoanRequestDtoProvider.validRequest();
-        BigDecimal monthlyPayment = BigDecimal.valueOf(856.07);
-        List<InstallmentDto> schedule = InstallmentDtoProvider.sampleSchedule();
-
-        when(loanCalculationService.calculateMonthlyPayment(
-            request.amount(), request.annualInterestPercent(), request.numberOfMonths()))
-            .thenReturn(monthlyPayment);
-
-        when(loanCalculationService.generateAmortizationSchedule(
-            request.amount(), request.annualInterestPercent(), request.numberOfMonths(), monthlyPayment))
-            .thenReturn(schedule);
-
-        when(loanRepository.save(any(Loan.class))).thenReturn(createMockLoanWithInstallments());
+    @DisplayName("Should calculate and save loan successfully - Happy Path")
+    void shouldCalculateAndSaveLoanSuccessfully() {
+        LoanRequestDto request = LoanRequestDtoProvider.validRequest(
+            BigDecimal.valueOf(10000),
+            BigDecimal.valueOf(5.0),
+            12
+        );
 
         LoanResponseDto response = loanService.calculateAndSaveLoan(request);
 
         assertThat(response).isNotNull();
         assertThat(response.id()).isNotNull();
-        assertThat(response.schedule()).isNotNull();
-        assertThat(response.schedule()).hasSizeGreaterThan(0);
+        assertThat(response.amount()).isEqualTo(request.amount());
+        assertThat(response.annualInterestPercent()).isEqualTo(request.annualInterestPercent());
+        assertThat(response.numberOfMonths()).isEqualTo(request.numberOfMonths());
+        assertThat(response.monthlyPayment()).isNotNull().isPositive();
+        assertThat(response.schedule()).isNotNull().hasSize(12);
+
+        assertThat(response.monthlyPayment()).isEqualTo(BigDecimal.valueOf(856.07));
+
+        var firstInstallment = response.schedule().getFirst();
+        assertThat(firstInstallment.month()).isEqualTo(1);
+        assertThat(firstInstallment.payment()).isEqualTo(BigDecimal.valueOf(856.07));
+        assertThat(firstInstallment.principal()).isEqualTo(new BigDecimal("814.40"));
+        assertThat(firstInstallment.interest()).isEqualTo(BigDecimal.valueOf(41.67));
+        assertThat(firstInstallment.remainingBalance()).isEqualTo(new BigDecimal("9185.60"));
+
+        var lastInstallment = response.schedule().get(11);
+        assertThat(lastInstallment.month()).isEqualTo(12);
+        assertThat(lastInstallment.remainingBalance()).isEqualTo(new BigDecimal("0.00"));
     }
 
-    private Loan createMockLoanWithInstallments() {
-        Loan loan = new Loan();
-        loan.setId("test-id-123");
-        loan.setAmount(BigDecimal.valueOf(10000));
-        loan.setAnnualInterestPercent(BigDecimal.valueOf(5.0));
-        loan.setNumberOfMonths(12);
-        loan.setMonthlyPayment(BigDecimal.valueOf(856.07));
+    @Test
+    @DisplayName("Should handle zero interest loan correctly")
+    void shouldHandleZeroInterestLoanCorrectly() {
+        LoanRequestDto request = LoanRequestDtoProvider.validRequest(
+            BigDecimal.valueOf(6000),
+            BigDecimal.ZERO,
+            6
+        );
 
+        LoanResponseDto response = loanService.calculateAndSaveLoan(request);
+        assertThat(response.monthlyPayment()).isEqualTo(new BigDecimal("1000.00"));
 
-        Installment installment1 = new Installment();
-        installment1.setMonth(1);
-        installment1.setPayment(BigDecimal.valueOf(856.07));
-        installment1.setPrincipal(BigDecimal.valueOf(814.40));
-        installment1.setInterest(BigDecimal.valueOf(41.67));
-        installment1.setRemainingBalance(BigDecimal.valueOf(9185.60));
+        response.schedule().forEach(installment -> {
+            assertThat(installment.interest()).isEqualTo(new BigDecimal("0.00"));
+            assertThat(installment.principal()).isEqualTo(new BigDecimal("1000.00"));
+        });
+    }
 
-        Installment installment2 = new Installment();
-        installment2.setMonth(2);
-        installment2.setPayment(BigDecimal.valueOf(856.07));
-        installment2.setPrincipal(BigDecimal.valueOf(817.80));
-        installment2.setInterest(BigDecimal.valueOf(38.27));
-        installment2.setRemainingBalance(BigDecimal.valueOf(8367.80));
+    @Test
+    @DisplayName("Should persist loan data to database")
+    void shouldPersistLoanDataToDatabase() {
+        LoanRequestDto request = LoanRequestDtoProvider.validRequest();
 
-        loan.setInstallments(List.of(installment1, installment2));
+        LoanResponseDto response = loanService.calculateAndSaveLoan(request);
 
-        return loan;
+        assertThat(response.id()).isNotNull();
+        assertThat(response.amount()).isEqualTo(BigDecimal.valueOf(10000));
+        assertThat(response.annualInterestPercent()).isEqualTo(BigDecimal.valueOf(5.0));
+        assertThat(response.numberOfMonths()).isEqualTo(12);
+        assertThat(response.schedule()).hasSize(12);
+    }
+
+    @Test
+    @DisplayName("Should generate complete amortization schedule")
+    void shouldGenerateCompleteAmortizationSchedule() {
+        LoanRequestDto request = LoanRequestDtoProvider.validRequest(
+            BigDecimal.valueOf(5000),
+            BigDecimal.valueOf(6.0),
+            10
+        );
+
+        LoanResponseDto response = loanService.calculateAndSaveLoan(request);
+
+        assertThat(response.schedule()).hasSize(10);
+        BigDecimal previousBalance = response.amount();
+        for (var installment : response.schedule()) {
+            assertThat(installment.month()).isBetween(1, 10);
+            assertThat(installment.payment()).isEqualTo(response.monthlyPayment());
+            assertThat(installment.remainingBalance()).isLessThanOrEqualTo(previousBalance);
+            assertThat(installment.remainingBalance()).isGreaterThanOrEqualTo(BigDecimal.ZERO);
+            assertThat(installment.principal().add(installment.interest())).isEqualTo(installment.payment());
+            previousBalance = installment.remainingBalance();
+        }
+
+        var lastInstallment = response.schedule().get(9);
+        assertThat(lastInstallment.remainingBalance()).isEqualTo(new BigDecimal("0.00"));
     }
 }

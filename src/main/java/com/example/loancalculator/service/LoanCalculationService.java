@@ -15,70 +15,73 @@ public class LoanCalculationService {
     private static final int INTEREST_SCALE = 12;
     private static final RoundingMode ROUNDING = RoundingMode.HALF_UP;
 
-    public BigDecimal calculateMonthlyPayment(BigDecimal amount, BigDecimal annualInterestPercent, int numberOfMonths) {
+    public BigDecimal calculateMonthlyPayment(BigDecimal loanAmount, BigDecimal annualInterestPercent, int numberOfMonths) {
 
         BigDecimal monthlyInterestRate = annualInterestPercent
                 .divide(BigDecimal.valueOf(100), INTEREST_SCALE, ROUNDING)
                 .divide(BigDecimal.valueOf(12), INTEREST_SCALE, ROUNDING);
 
         if (monthlyInterestRate.compareTo(BigDecimal.ZERO) == 0) {
-            return amount.divide(BigDecimal.valueOf(numberOfMonths), CURRENCY_SCALE, ROUNDING);
+            return loanAmount.divide(BigDecimal.valueOf(numberOfMonths), CURRENCY_SCALE, ROUNDING);
         }
 
-        BigDecimal onePlusI = BigDecimal.ONE.add(monthlyInterestRate);
-        BigDecimal onePlusIPowerN = onePlusI.pow(numberOfMonths);
+        BigDecimal onePlusRate = BigDecimal.ONE.add(monthlyInterestRate);
+        BigDecimal rateCompounded = onePlusRate.pow(numberOfMonths);
 
-        BigDecimal numerator = amount.multiply(monthlyInterestRate).multiply(onePlusIPowerN);
-        BigDecimal denominator = onePlusIPowerN.subtract(BigDecimal.ONE);
+        BigDecimal numerator = loanAmount.multiply(monthlyInterestRate).multiply(rateCompounded);
+        BigDecimal denominator = rateCompounded.subtract(BigDecimal.ONE);
 
         return numerator.divide(denominator, INTEREST_SCALE, ROUNDING)
                 .setScale(CURRENCY_SCALE, ROUNDING);
     }
 
-    public List<InstallmentDto> generateAmortizationSchedule(BigDecimal amount, BigDecimal annualInterestPercent,
+    public List<InstallmentDto> generateAmortizationSchedule(BigDecimal loanAmount, BigDecimal annualInterestPercent,
                                                              int numberOfMonths, BigDecimal monthlyPayment) {
 
         BigDecimal monthlyInterestRate = annualInterestPercent
                 .divide(BigDecimal.valueOf(100), INTEREST_SCALE, ROUNDING)
                 .divide(BigDecimal.valueOf(12), INTEREST_SCALE, ROUNDING);
 
-        List<InstallmentDto> schedule = new ArrayList<>(numberOfMonths);
-        BigDecimal remainingBalance = amount;
+        List<InstallmentDto> amortizationSchedule = new ArrayList<>(numberOfMonths);
+        BigDecimal outstandingBalance = loanAmount;
 
-        for (int month = 1; month <= numberOfMonths; month++) {
-            BigDecimal interest = remainingBalance.multiply(monthlyInterestRate).setScale(INTEREST_SCALE, ROUNDING);
-            BigDecimal principal = monthlyPayment.subtract(interest).setScale(INTEREST_SCALE, ROUNDING);
+        for (int monthNumber = 1; monthNumber <= numberOfMonths; monthNumber++) {
+            BigDecimal interestForMonth = outstandingBalance.multiply(monthlyInterestRate)
+                    .setScale(INTEREST_SCALE, ROUNDING);
 
-            if (principal.compareTo(remainingBalance) > 0) {
-                principal = remainingBalance;
+            BigDecimal principalForMonth = monthlyPayment.subtract(interestForMonth)
+                    .setScale(INTEREST_SCALE, ROUNDING);
+
+            if (principalForMonth.compareTo(outstandingBalance) > 0) {
+                principalForMonth = outstandingBalance;
             }
 
-            BigDecimal actualPayment = principal.add(interest);
+            BigDecimal totalPaymentForMonth = principalForMonth.add(interestForMonth);
 
-            BigDecimal dtoPayment = actualPayment.setScale(CURRENCY_SCALE, ROUNDING);
-            BigDecimal dtoPrincipal = principal.setScale(CURRENCY_SCALE, ROUNDING);
-            BigDecimal dtoInterest = interest.setScale(CURRENCY_SCALE, ROUNDING);
+            BigDecimal paymentRounded = totalPaymentForMonth.setScale(CURRENCY_SCALE, ROUNDING);
+            BigDecimal principalRounded = principalForMonth.setScale(CURRENCY_SCALE, ROUNDING);
+            BigDecimal interestRounded = interestForMonth.setScale(CURRENCY_SCALE, ROUNDING);
 
-            remainingBalance = remainingBalance.subtract(principal);
-            if (remainingBalance.compareTo(BigDecimal.ZERO) < 0) {
-                remainingBalance = BigDecimal.ZERO;
+            outstandingBalance = outstandingBalance.subtract(principalForMonth);
+            if (outstandingBalance.compareTo(BigDecimal.ZERO) < 0) {
+                outstandingBalance = BigDecimal.ZERO;
             }
 
-            BigDecimal dtoRemaining = remainingBalance.setScale(CURRENCY_SCALE, ROUNDING);
+            BigDecimal balanceRounded = outstandingBalance.setScale(CURRENCY_SCALE, ROUNDING);
 
-            if (month == numberOfMonths) {
-                dtoRemaining = BigDecimal.ZERO.setScale(CURRENCY_SCALE, ROUNDING);
+            if (monthNumber == numberOfMonths) {
+                balanceRounded = BigDecimal.ZERO.setScale(CURRENCY_SCALE, ROUNDING);
             }
 
-            schedule.add(new InstallmentDto(
-                    month,
-                    dtoPayment,
-                    dtoPrincipal,
-                    dtoInterest,
-                    dtoRemaining
+            amortizationSchedule.add(new InstallmentDto(
+                    monthNumber,
+                    paymentRounded,
+                    principalRounded,
+                    interestRounded,
+                    balanceRounded
             ));
         }
 
-        return schedule;
+        return amortizationSchedule;
     }
 }

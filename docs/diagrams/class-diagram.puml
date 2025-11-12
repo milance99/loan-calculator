@@ -1,0 +1,151 @@
+@startuml Loan Calculator Class Diagram
+
+' Styling
+skinparam classAttributeIconSize 0
+skinparam class {
+    BackgroundColor<<controller>> #E1F5FE
+    BackgroundColor<<service>> #F3E5F5
+    BackgroundColor<<repository>> #FFF3E0
+    BackgroundColor<<entity>> #FFEBEE
+    BackgroundColor<<dto>> #E8F5E8
+    BackgroundColor<<mapper>> #F5F5F5
+    BackgroundColor<<exception>> #FCE4EC
+    BorderColor Black
+    ArrowColor Black
+}
+
+' Controller Layer
+class LoanController <<controller>> {
+    - loanService: LoanService
+    + calculateLoan(request: LoanRequestDto): ResponseEntity<LoanResponseDto>
+}
+
+' Service Layer
+class LoanService <<service>> {
+    - loanRepository: LoanRepository
+    - loanCalculationService: LoanCalculationService
+    + calculateAndSaveLoan(request: LoanRequestDto): LoanResponseDto
+}
+
+class LoanCalculationService <<service>> {
+    + calculateMonthlyPayment(amount: BigDecimal, rate: BigDecimal, months: Integer): BigDecimal
+    + generateAmortizationSchedule(amount: BigDecimal, rate: BigDecimal, months: Integer, payment: BigDecimal): List<InstallmentDto>
+}
+
+' Repository Layer
+interface LoanRepository <<repository>> {
+    + save(loan: Loan): Loan
+    + findById(id: String): Optional<Loan>
+    + findAll(): List<Loan>
+}
+
+' Entity Layer
+class Loan <<entity>> {
+    - id: String
+    - amount: BigDecimal
+    - annualInterestPercent: BigDecimal
+    - numberOfMonths: Integer
+    - monthlyPayment: BigDecimal
+    - createdAt: LocalDateTime
+    - lastUpdatedAt: LocalDateTime
+    - installments: List<Installment>
+}
+
+class Installment <<entity>> {
+    - id: String
+    - month: Integer
+    - payment: BigDecimal
+    - principal: BigDecimal
+    - interest: BigDecimal
+    - remainingBalance: BigDecimal
+    - createdAt: LocalDateTime
+    - lastUpdatedAt: LocalDateTime
+    - loan: Loan
+}
+
+' DTO Layer
+class LoanRequestDto <<dto>> {
+    + amount: BigDecimal
+    + annualInterestPercent: BigDecimal
+    + numberOfMonths: Integer
+}
+
+class LoanResponseDto <<dto>> {
+    + id: String
+    + amount: BigDecimal
+    + annualInterestPercent: BigDecimal
+    + numberOfMonths: Integer
+    + monthlyPayment: BigDecimal
+    + createdAt: LocalDateTime
+    + schedule: List<InstallmentDto>
+}
+
+class InstallmentDto <<dto>> {
+    + month: Integer
+    + payment: BigDecimal
+    + principal: BigDecimal
+    + interest: BigDecimal
+    + remainingBalance: BigDecimal
+}
+
+' Mapper Layer
+class LoanMapper <<mapper>> {
+    + {static} toEntity(request: LoanRequestDto): Loan
+    + {static} toResponseDto(loan: Loan): LoanResponseDto
+}
+
+class InstallmentMapper <<mapper>> {
+    + {static} toDto(installment: Installment): InstallmentDto
+    + {static} toEntity(dto: InstallmentDto, loan: Loan): Installment
+}
+
+' Exception Handler
+class ExceptionMapper <<exception>> {
+    + handleValidation(ex: MethodArgumentNotValidException): ResponseEntity
+    + handleConstraintViolation(ex: ConstraintViolationException): ResponseEntity
+}
+
+' Relationships - Controller Layer
+LoanController --> LoanService : uses
+LoanController ..> LoanRequestDto : uses
+LoanController ..> LoanResponseDto : returns
+
+' Relationships - Service Layer
+LoanService --> LoanRepository : uses
+LoanService --> LoanCalculationService : uses
+LoanService ..> LoanRequestDto : uses
+LoanService ..> LoanResponseDto : returns
+LoanService ..> LoanMapper : static calls
+LoanService ..> InstallmentMapper : static calls
+
+' Relationships - Repository Layer
+LoanRepository --> Loan : manages
+
+' Relationships - Entity Layer
+Loan "1" *-- "*" Installment : contains
+Installment "*" --> "1" Loan : belongs to
+
+' Relationships - Mapper Layer
+LoanMapper ..> LoanRequestDto : reads
+LoanMapper ..> Loan : creates
+LoanMapper ..> LoanResponseDto : creates
+
+InstallmentMapper ..> InstallmentDto : reads
+InstallmentMapper ..> Installment : creates
+
+' Relationships - DTO Layer
+LoanResponseDto "1" o-- "*" InstallmentDto : contains
+
+' Legend
+legend right
+    |<#E1F5FE> Controller Layer | HTTP request handling |
+    |<#F3E5F5> Service Layer | Business logic |
+    |<#FFF3E0> Repository Layer | Data persistence |
+    |<#FFEBEE> Entity Layer | JPA database models |
+    |<#E8F5E8> DTO Layer | Data transfer objects |
+    |<#F5F5F5> Mapper Layer | Entity-DTO conversion |
+    |<#FCE4EC> Exception Handler | Global error handling |
+endlegend
+
+@enduml
+
